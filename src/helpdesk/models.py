@@ -706,8 +706,8 @@ class Ticket(models.Model):
                 send_templated_mail(
                     template,
                     context,
-                    recipient,
-                    sender=self.queue.from_address,
+                    recipient.strip(),
+                    sender=self.queue.from_address.strip(),
                     **kwargs,
                 )
                 recipients.add(recipient)
