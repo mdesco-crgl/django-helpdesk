@@ -51,7 +51,7 @@
                                     {% if "url" == customfield.field.data_type %}
                                         <a href='{{ customfield.value }}'>{{ customfield.value }}</a>
                                     {% elif "datetime" == customfield.field.data_type %}
-                                        {{ customfield.value|datetime_string_format }}
+                                        {{ customfield.aware_value|date:SHORT_DATETIME_FORMAT }}
                                     {% elif "date" == customfield.field.data_type %}
                                         {{ customfield.value|datetime_string_format }}
                                     {% elif "time" == customfield.field.data_type %}
