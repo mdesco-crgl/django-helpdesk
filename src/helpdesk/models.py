@@ -112,6 +112,7 @@ class Queue(models.Model):
     title = models.CharField(
         _("Title"),
         max_length=100,
+        help_text=_("DO NOT USE ANY SPECIAL CHARACTERS ESPECIALLY COMMAS. EMAIL WILL COMPLETELY BREAK."),
     )
 
     slug = models.SlugField(
