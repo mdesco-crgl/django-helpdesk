@@ -77,6 +77,28 @@ def get_markdown(text):
     )
 
 
+class AwareQuerySet(models.QuerySet):
+    def _filter_or_exclude(self, negate, *args, **kwargs):
+        for key, value in kwargs.items():
+            # Handle Strings
+            if isinstance(value, str):
+                # Try common formats used in your app
+                for fmt in ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
+                    try:
+                        parsed = datetime.strptime(value, fmt)
+                        if len(value) <= 10:  # It's just a date "YYYY-MM-DD"
+                            parsed = datetime.combine(parsed, datetime.time.min)
+                        kwargs[key] = timezone.make_aware(parsed)
+                        break
+                    except (ValueError, TypeError):
+                        continue
+            # Handle Naive Datetime objects
+            elif isinstance(value, datetime) and timezone.is_naive(value):
+                kwargs[key] = timezone.make_aware(value)
+
+        return super()._filter_or_exclude(negate, *args, **kwargs)
+
+
 class Queue(models.Model):
     """
     A queue is a collection of tickets into what would generally be business
@@ -90,6 +112,7 @@ class Queue(models.Model):
     title = models.CharField(
         _("Title"),
         max_length=100,
+        help_text=_("DO NOT USE ANY SPECIAL CHARACTERS ESPECIALLY COMMAS. EMAIL WILL COMPLETELY BREAK."),
     )
 
     slug = models.SlugField(
@@ -476,6 +499,11 @@ def mk_secret():
     return str(uuid.uuid4())
 
 
+class TicketManager(models.Manager):
+    def get_queryset(self):
+        return AwareQuerySet(self.model, using=self._db)
+
+
 class Ticket(models.Model):
     """
     To allow a ticket to be entered as quickly as possible, only the
@@ -505,6 +533,8 @@ class Ticket(models.Model):
 
     PRIORITY_CHOICES = helpdesk_settings.TICKET_PRIORITY_CHOICES
 
+    objects = TicketManager()
+    
     title = models.CharField(
         _("Title"),
         max_length=200,
@@ -677,8 +707,8 @@ class Ticket(models.Model):
                 send_templated_mail(
                     template,
                     context,
-                    recipient,
-                    sender=self.queue.from_address,
+                    recipient.strip(),
+                    sender=self.queue.from_address.strip(),
                     **kwargs,
                 )
                 recipients.add(recipient)
@@ -951,6 +981,11 @@ class Ticket(models.Model):
 
 
 class FollowUpManager(models.Manager):
+    
+    def get_queryset(self):
+        # This tells the manager to use our 'Aware' logic for all queries
+        return AwareQuerySet(self.model, using=self._db)
+    
     def private_followups(self):
         return self.filter(public=False)
 
@@ -2139,7 +2174,15 @@ class CustomField(models.Model):
             raise NameError("Unrecognized data_type %s" % self.data_type)
 
 
+class TicketCustomFieldManager(models.Manager):
+    def get_queryset(self):
+        return AwareQuerySet(self.model, using=self._db)
+
+
 class TicketCustomFieldValue(models.Model):
+
+    objects = TicketCustomFieldManager()
+
     ticket = models.ForeignKey(
         Ticket,
         on_delete=models.CASCADE,
@@ -2160,6 +2203,38 @@ class TicketCustomFieldValue(models.Model):
     @property
     def default_value(self) -> str:
         return _("Not defined")
+
+    @property
+    def aware_value(self):
+        """
+        Returns the string 'value' converted into a Python object
+        (Aware Datetime, Date, or Time) based on the field type.
+        """
+        from django.conf import settings
+        CUSTOMFIELD_DATETIME_FORMAT = settings.CUSTOMFIELD_DATETIME_FORMAT
+        CUSTOMFIELD_DATE_FORMAT = settings.CUSTOMFIELD_DATE_FORMAT
+        CUSTOMFIELD_TIME_FORMAT = settings.CUSTOMFIELD_TIME_FORMAT
+        if not self.value:
+            return None
+
+        # Logic based on the CustomField's data_type
+        dtype = self.field.data_type
+
+        try:
+            if dtype == "datetime":
+                naive = datetime.strptime(self.value, CUSTOMFIELD_DATETIME_FORMAT)
+                return timezone.make_aware(naive)
+
+            elif dtype == "date":
+                return datetime.strptime(self.value, CUSTOMFIELD_DATE_FORMAT).date()
+
+            elif dtype == "time":
+                return datetime.strptime(self.value, CUSTOMFIELD_TIME_FORMAT).time()
+        except (ValueError, TypeError):
+            # Fallback to raw string if parsing fails
+            return self.value
+
+        return self.value
 
     class Meta:
         unique_together = (("ticket", "field"),)
