@@ -649,8 +649,10 @@ def get_due_date_from_form_or_ticket(
             if ticket.due_date:
                 due_date = ticket.due_date
             else:
-                due_date = timezone.now()
-                due_date = due_date.replace(due_date_year, due_date_month, due_date_day)
+                # 1. Create a naive date first
+                naive_datetime = datetime.datetime(due_date_year, due_date_month, due_date_day)
+                # 2. Make it aware using Django's utility
+                due_date = timezone.make_aware(naive_datetime)
     return due_date
 
 
@@ -2069,28 +2071,26 @@ def calc_average_nbr_days_until_ticket_resolved(Tickets):
 
 
 def calc_basic_ticket_stats(Tickets):
-    # all not closed tickets (open, reopened, resolved,) - independent of user
-    all_open_tickets = Tickets.exclude(status=Ticket.CLOSED_STATUS)
-    today = datetime.today()
+    # 1. Use timezone.now() to get an "Aware" object
+    now = timezone.now()
 
-    date_30 = date_rel_to_today(today, 30)
-    date_60 = date_rel_to_today(today, 60)
+    # 2. Use timedelta for clean date math instead of a helper function
+    date_30 = now - timedelta(days=30)
+    date_60 = now - timedelta(days=60)
     date_30_str = date_30.strftime(CUSTOMFIELD_DATE_FORMAT)
     date_60_str = date_60.strftime(CUSTOMFIELD_DATE_FORMAT)
+    all_open_tickets = Tickets.exclude(status=Ticket.CLOSED_STATUS)
 
-    # > 0 & <= 30
-    ota_le_30 = all_open_tickets.filter(created__gte=date_30_str)
-    N_ota_le_30 = len(ota_le_30)
+    # 3. Filter using the ACTUAL objects, not strings
+    # This keeps everything "Aware" and avoids the warning
+    ota_le_30 = all_open_tickets.filter(created__gte=date_30)
+    N_ota_le_30 = ota_le_30.count()  # Use .count() for speed
 
-    # >= 30 & <= 60
-    ota_le_60_ge_30 = all_open_tickets.filter(
-        created__gte=date_60_str, created__lte=date_30_str
-    )
-    N_ota_le_60_ge_30 = len(ota_le_60_ge_30)
+    ota_le_60_ge_30 = all_open_tickets.filter(created__gte=date_60, created__lte=date_30)
+    N_ota_le_60_ge_30 = ota_le_60_ge_30.count()
 
-    # >= 60
-    ota_ge_60 = all_open_tickets.filter(created__lte=date_60_str)
-    N_ota_ge_60 = len(ota_ge_60)
+    ota_ge_60 = all_open_tickets.filter(created__lte=date_60)
+    N_ota_ge_60 = ota_ge_60.count()
 
     # (O)pen (T)icket (S)tats
     ots = list()

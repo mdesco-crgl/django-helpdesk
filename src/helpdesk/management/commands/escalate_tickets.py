@@ -8,7 +8,7 @@ scripts/escalate_tickets.py - Easy way to escalate tickets based on their age,
                               designed to be run from Cron or similar.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
@@ -57,8 +57,8 @@ class Command(BaseCommand):
             self.stdout.write(f"Processing: {queues}")
 
         for queue in queues:
-            last = date.today() - timedelta(days=queue.escalate_days)
-            today = date.today()
+            last = timezone.now().date() - timedelta(days=queue.escalate_days)
+            today = timezone.now().date()
             workdate = last
 
             days = 0

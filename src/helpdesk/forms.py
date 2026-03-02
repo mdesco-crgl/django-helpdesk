@@ -155,17 +155,17 @@ class EditTicketForm(CustomFieldMixin, forms.ModelForm):
                 # Attempt to convert from fixed format string to date/time data
                 # type
                 if "datetime" == current_value.field.data_type:
-                    initial_value = datetime.strptime(
-                        initial_value, CUSTOMFIELD_DATETIME_FORMAT
-                    )
+                    parsed_dt = datetime.strptime(initial_value, CUSTOMFIELD_DATETIME_FORMAT)
+                    # Correct: Makes it Aware for DB compatibility
+                    initial_value = timezone.make_aware(parsed_dt)
+
                 elif "date" == current_value.field.data_type:
-                    initial_value = datetime.strptime(
-                        initial_value, CUSTOMFIELD_DATE_FORMAT
-                    )
+                    # Correct: Strips the time/tz to just Year-Month-Day
+                    initial_value = datetime.strptime(initial_value, CUSTOMFIELD_DATE_FORMAT).date()
+
                 elif "time" == current_value.field.data_type:
-                    initial_value = datetime.strptime(
-                        initial_value, CUSTOMFIELD_TIME_FORMAT
-                    )
+                    # FIX: Add .time() to strip the 1900-01-01 date portion
+                    initial_value = datetime.strptime(initial_value, CUSTOMFIELD_TIME_FORMAT).time()
                 # If it is boolean field, transform the value to a real boolean
                 # instead of a string
                 elif "boolean" == current_value.field.data_type:

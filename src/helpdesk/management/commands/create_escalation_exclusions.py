@@ -9,7 +9,8 @@ scripts/create_escalation_exclusion.py - Easy way to routinely add particular
                                          escalation should take place.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
+from django.utils import timezone
 from django.core.management.base import BaseCommand, CommandError
 from helpdesk.models import EscalationExclusion, Queue
 
@@ -71,7 +72,7 @@ class Command(BaseCommand):
 
         for day_name in days:
             day = day_names[day_name]
-            workdate = date.today()
+            workdate = timezone.now().date()
             i = 0
             while i < occurrences:
                 if day == workdate.weekday():
