@@ -2074,17 +2074,21 @@ def calc_basic_ticket_stats(Tickets):
     # 1. Use timezone.now() to get an "Aware" object
     now = timezone.now()
 
-    # 2. Use timedelta for clean date math instead of a helper function
+    # 2. Use timedelta for clean date math
+    # We keep these as datetime objects to avoid "naive" string warnings
     date_30 = now - timedelta(days=30)
     date_60 = now - timedelta(days=60)
+    
+    # We only keep strings if they are absolutely needed for the sort_string function
     date_30_str = date_30.strftime(CUSTOMFIELD_DATE_FORMAT)
     date_60_str = date_60.strftime(CUSTOMFIELD_DATE_FORMAT)
+    
     all_open_tickets = Tickets.exclude(status=Ticket.CLOSED_STATUS)
 
-    # 3. Filter using the ACTUAL objects, not strings
-    # This keeps everything "Aware" and avoids the warning
+    # 3. Filter using the ACTUAL aware objects (date_30 and date_60)
+    # This prevents the "received a naive datetime" RuntimeWarning
     ota_le_30 = all_open_tickets.filter(created__gte=date_30)
-    N_ota_le_30 = ota_le_30.count()  # Use .count() for speed
+    N_ota_le_30 = ota_le_30.count()
 
     ota_le_60_ge_30 = all_open_tickets.filter(created__gte=date_60, created__lte=date_30)
     N_ota_le_60_ge_30 = ota_le_60_ge_30.count()
@@ -2094,10 +2098,10 @@ def calc_basic_ticket_stats(Tickets):
 
     # (O)pen (T)icket (S)tats
     ots = list()
-    # label, number entries, color, sort_string
     ots.append(
         [
             "Tickets < 30 days",
+            # Ensure we use the count variable
             N_ota_le_30,
             "success",
             sort_string(date_30_str, ""),
@@ -2120,18 +2124,20 @@ def calc_basic_ticket_stats(Tickets):
         ]
     )
 
-    # all closed tickets - independent of user.
+    # all closed tickets
     all_closed_tickets = Tickets.filter(status=Ticket.CLOSED_STATUS)
+    
     average_nbr_days_until_ticket_closed = calc_average_nbr_days_until_ticket_resolved(
         all_closed_tickets
     )
-    # all closed tickets that were opened in the last 60 days.
-    all_closed_last_60_days = all_closed_tickets.filter(created__gte=date_60_str)
+
+    all_closed_last_60_days = all_closed_tickets.filter(created__gte=date_60)
+    
     average_nbr_days_until_ticket_closed_last_60_days = (
         calc_average_nbr_days_until_ticket_resolved(all_closed_last_60_days)
     )
 
-    # put together basic stats
+    # Build the final stats dictionary
     basic_ticket_stats = {
         "average_nbr_days_until_ticket_closed": average_nbr_days_until_ticket_closed,
         "average_nbr_days_until_ticket_closed_last_60_days": average_nbr_days_until_ticket_closed_last_60_days,
@@ -2139,7 +2145,6 @@ def calc_basic_ticket_stats(Tickets):
     }
 
     return basic_ticket_stats
-
 
 def get_color_for_nbr_days(nbr_days):
     if nbr_days < 5:
