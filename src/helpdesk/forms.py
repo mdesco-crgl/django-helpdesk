@@ -124,7 +124,7 @@ class EditTicketForm(CustomFieldMixin, forms.ModelForm):
         )
 
     class Media:
-        js = ("helpdesk/js/init_due_date.js", "helpdesk/js/init_datetime_classes.js")
+        js = ("helpdesk/js/init_datetime_classes.js")
 
     def __init__(self, *args, **kwargs):
         """
@@ -301,19 +301,6 @@ class AbstractTicketForm(CustomFieldMixin, forms.Form):
         help_text=_("Please select a priority carefully. If unsure, leave it as '3'."),
     )
 
-    due_date = forms.DateTimeField(
-        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
-        required=False,
-        input_formats=[
-            CUSTOMFIELD_DATE_FORMAT,
-            CUSTOMFIELD_DATETIME_FORMAT,
-            "%d/%m/%Y",
-            "%m/%d/%Y",
-            "%d.%m.%Y",
-        ],
-        label=_("Due on"),
-    )
-
     if helpdesk_settings.HELPDESK_ENABLE_ATTACHMENTS:
         attachment = forms.FileField(
             widget=forms.FileInput(attrs={"class": "form-control-file"}),
@@ -329,7 +316,7 @@ class AbstractTicketForm(CustomFieldMixin, forms.Form):
         )
 
     class Media:
-        js = ("helpdesk/js/init_due_date.js", "helpdesk/js/init_datetime_classes.js")
+        js = ("helpdesk/js/init_datetime_classes.js")
 
     def __init__(self, kbcategory=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -382,10 +369,6 @@ class AbstractTicketForm(CustomFieldMixin, forms.Form):
             priority=self.cleaned_data.get(
                 "priority", getattr(settings, "HELPDESK_PUBLIC_TICKET_PRIORITY", "3")
             ),
-            due_date=self.cleaned_data.get(
-                "due_date", getattr(settings, "HELPDESK_PUBLIC_TICKET_DUE_DATE", None)
-            )
-            or None,
             kbitem=kbitem,
         )
 
@@ -552,16 +535,7 @@ class PublicTicketForm(AbstractTicketForm):
         field_deletion_table = {
             "queue": "HELPDESK_PUBLIC_TICKET_QUEUE",
             "priority": "HELPDESK_PUBLIC_TICKET_PRIORITY",
-            "due_date": "HELPDESK_PUBLIC_TICKET_DUE_DATE",
         }
-
-        for field_name, field_setting_key in field_deletion_table.items():
-            has_settings_default_value = getattr(settings, field_setting_key, None)
-            if has_settings_default_value is not None or (
-                "HELPDESK_PUBLIC_TICKET_DUE_DATE" == field_setting_key
-                and hasattr(settings, field_setting_key)
-            ):
-                del self.fields[field_name]
 
         public_queues = Queue.objects.filter(allow_public_submission=True)
 
